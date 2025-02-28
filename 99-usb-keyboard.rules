@@ -1,0 +1,1 @@
+ATTRS{idVendor}=="1e7d", ATTRS{idProduct}=="311a", ACTION=="bind", OWNER="username", RUN+="/opt/usb_kb_layout/usb_kb_layout_wrapper.sh"
