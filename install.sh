@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# this is a installation script for usb_kb_layout files
+# gitlab.com/felipeheuer
+# https://github.com/felipeheuer/usb_kb_layout
+
 # Initial configurations
 set -euo pipefail
 
