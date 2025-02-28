@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # this script sets a new layout for the selected keyboard
-# gitlab.com/felipeheuer
+# https://github.com/felipeheuer/usb_kb_layout
 
 # !!! update the following lines with your keyboard and user information
 kb_model_usb="Vulcan Pro TKL"

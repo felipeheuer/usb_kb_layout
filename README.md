@@ -2,6 +2,9 @@
 Scripts to update an external USB keyboard's layout when it is plugged in.
 
 ## Installation
+### Automatic
+Make sure the `install.sh` script has run permision, run it and follow the instructions on the terminal.
+
 ### Manual
 - Edit `usb_kb_layout.sh` and update it according to your desired layout. Copy both `usb_kb_layout.sh` and `usb_kb_layout_wrapper.sh` to `/opt/usb_kb_layout/` folder. Give the folder root run access recursively.
 - Edit `99-usb-keyboard.rules` and change values for the parameters `ATTRS{idVendor}`, `ATTRS{idProduct}` and `OWNER` to match your needs. Copy the updated file to `/etc/udev/rules.d` and give it root run access.
