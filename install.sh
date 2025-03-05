@@ -11,19 +11,25 @@ set -euo pipefail
 position=0
 devices_array=()
 installation_dir="/opt/usb_kb_layout/"
+startup_dir="/etc/profile.d/"
 script_owner=$(whoami)
+script_file="usb_kb_layout.sh"
+wrapper_file="usb_kb_layout_wrapper.sh"
+rules_file="99-usb-keyboard.rules"
+startup_file="start_usb_kb_layout.sh"
 
 # Display functions
 display_title() {
     echo "USB Keyboard Layout Installer"
     echo "-----------------------------"
     echo " "
-    echo "Select your keyboard from the list:"
 }
 
 display_device_list() {
     clear
     display_title
+    echo "Select your keyboard from the list:"
+
     local i
     for i in "${!devices_array[@]}"; do
         if [[ "$i" -eq "$position" ]]; then
@@ -59,6 +65,11 @@ filter_usb_devices() {
 
 select_device() {
     local list_size=${#devices_array[@]}
+    if [[ ${#devices_array[@]} -eq 0 ]]; then
+        echo "No keyboard found."
+        return 1
+    fi
+
     stty -icanon -echo
     while true; do
         display_device_list
@@ -123,6 +134,26 @@ get_installation_dir() {
     installation_dir="${installation_dir%/}"
 }
 
+get_startup_dir() {
+    while true; do
+        read -p "Enter startup scripts directory (default: /etc/profile.d/): " startup_dir
+        echo -ne "\r"
+        if [[ -z "$startup_dir" ]]; then
+            startup_dir="/etc/profile.d/"
+        fi
+        startup_dir="${startup_dir%/}"
+
+        if [ -d "$startup_dir" ] ; then
+            break
+        else
+            echo -ne "Startup folder not found, try again."
+            sleep 1s
+            echo -ne "\r                                                                                "
+            echo -ne "\033[1A\r                                                                                \r"
+        fi
+    done
+}
+
 get_script_owner() {
     read -p "Enter script owner (default: $(whoami)): " script_owner
     if [[ -z "$script_owner" ]]; then
@@ -134,6 +165,7 @@ display_user_options() {
     echo "Selected device: ${devices_array[$position]} (idVendor: $idVendor, idProduct: $idProduct)"
     echo "Keyboard options: $keyboard_options"
     echo "Installation path: $installation_dir"
+    echo "Startup scripts path: $startup_dir"
     echo "Script owner: $script_owner"
 }
 
@@ -155,24 +187,30 @@ install_scripts() {
         sudo cp "$file" "$installation_dir"
         sudo chmod 755 "$installation_dir/$file"
     done
+    sudo cp "$startup_file" "$startup_dir"
+    sudo chmod 644 "$startup_dir/$startup_file"
 }
 
 configure_scripts() {
     local escaped_keyboard_options=$(printf "%s" "$keyboard_options" | sed 's/-/\\-/g')
-    sudo sed -i "0,/^kb_model_usb=/s/^kb_model_usb=\".*\"/kb_model_usb=\"${devices_array[$position]}\"/" "$installation_dir/usb_kb_layout.sh"
-    sudo sed -i '0,/^kb_layout_usb=/s/^kb_layout_usb=\".*\"/kb_layout_usb="'"$escaped_keyboard_options"'"/' "$installation_dir/usb_kb_layout.sh"
-    sudo sed -i "0,/^user_name=/s/^user_name=\".*\"/user_name=\"$script_owner\"/" "$installation_dir/usb_kb_layout.sh"
+    sudo sed -i "0,/^kb_model_usb=/s/^kb_model_usb=\".*\"/kb_model_usb=\"${devices_array[$position]}\"/" "$installation_dir/$script_file"
+    sudo sed -i '0,/^kb_layout_usb=/s/^kb_layout_usb=\".*\"/kb_layout_usb="'"$escaped_keyboard_options"'"/' "$installation_dir/$script_file"
+    sudo sed -i "0,/^user_name=/s/^user_name=\".*\"/user_name=\"$script_owner\"/" "$installation_dir/$script_file"
 }
 
 configure_udev_rules() {
-    sudo cp 99-usb-keyboard.rules /etc/udev/rules.d/
-    sudo chmod 644 /etc/udev/rules.d/99-usb-keyboard.rules
-    sudo sed -i 's|OWNER="[^"]*"|OWNER="'"$script_owner"'"|' /etc/udev/rules.d/99-usb-keyboard.rules
-    sudo sed -i "s|RUN+=\".*\/usb_kb_layout_wrapper.sh\"|RUN+=\"$installation_dir\/usb_kb_layout_wrapper.sh\"|" /etc/udev/rules.d/99-usb-keyboard.rules
+    sudo cp $rules_file /etc/udev/rules.d/
+    sudo chmod 644 /etc/udev/rules.d/$rules_file
+    sudo sed -i 's|OWNER="[^"]*"|OWNER="'"$script_owner"'"|' /etc/udev/rules.d/$rules_file
+    sudo sed -i "s|RUN+=\".*\/$wrapper_file\"|RUN+=\"$installation_dir\/$wrapper_file\"|" /etc/udev/rules.d/$rules_file
 }
 
 configure_wrapper() {
-    sudo sed -i "s|.*\.sh.*|${installation_dir}/usb_kb_layout.sh \&|" "$installation_dir/usb_kb_layout_wrapper.sh"
+    sudo sed -i "s|.*\.sh.*|${installation_dir}/${script_file} \&|" "$installation_dir/$wrapper_file"
+}
+
+configure_startup() {
+    sudo sed -i "s|/opt/usb_kb_layout|${installation_dir}|g" "$startup_dir/$startup_file"
 }
 
 reload_udev_rules() {
@@ -180,6 +218,7 @@ reload_udev_rules() {
 }
 
 # Main flow
+display_title
 echo "Make sure your desired keyboard is plugged in."
 echo "Press Enter to continue, or Q to quit."
 read -s -n 1 key
@@ -194,20 +233,25 @@ while true; do
         if get_device_ids; then
             get_keyboard_layout
             get_installation_dir
+            get_startup_dir
             get_script_owner
             display_user_options
             if confirm_options; then
                 install_scripts
                 configure_wrapper
                 configure_scripts
+                configure_startup
                 configure_udev_rules
                 reload_udev_rules
                 echo "Installation completed successfully."
                 break
             else
-                echo "Options incorrect. Restarting process..."
+                echo "Restarting process..."
+                sleep 1s
             fi
         fi
+    else
+        break
     fi
 done
 
